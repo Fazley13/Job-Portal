@@ -1,0 +1,509 @@
+.login-container {
+    max-width: 400px;
+    margin: 100px auto;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+  }
+  
+  h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #333333;
+  }
+  
+  .input-group {
+    margin-bottom: 20px;
+  }
+  
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #555555;
+  }
+  
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    border-radius: 5px;
+    border: 1px solid #cccccc;
+    font-size: 16px;
+  }
+  select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 5px;
+  border: 1px solid #cccccc;
+  font-size: 16px;
+  background-color: white;
+}
+
+/* Add this to make number input arrows look better */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+  
+  button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 5px;
+    background-color: #007bff;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  button:hover {
+    background-color: #0056b3;
+  }
+  
+  .register-link {
+    text-align: center;
+    margin-top: 20px;
+    color: #888888;
+  }
+  
+  .register-link a {
+    color: #007bff;
+    text-decoration: none;
+  }
+  
+  .register-link a:hover {
+    text-decoration: underline;
+  }
+   .register-container {
+    max-width: 400px;
+    margin: 100px auto;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+  }
+  
+  h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #333333;
+  }
+  
+  .input-group {
+    margin-bottom: 20px;
+  }
+  
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #555555;
+  }
+  
+  input[type="text"],
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    border-radius: 5px;
+    border: 1px solid #cccccc;
+    font-size: 16px;
+  }
+  
+  button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 5px;
+    background-color: #007bff;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  button:hover {
+    background-color: #0056b3;
+  }
+  
+  .login-link {
+    text-align: center;
+    margin-top: 20px;
+    color: #888888;
+  }
+  
+  .login-link a {
+    color: #007bff;
+    text-decoration: none;
+  }
+  
+  .login-link a:hover {
+    text-decoration: underline;
+  }
+  .admin-container {
+    max-width: 800px;
+    margin: 50px auto;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+  }
+  
+  h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #333333;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #dddddd;
+  }
+  
+  th {
+    background-color: #f2f2f2;
+  }
+  
+  button {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    background-color: #444fc5;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  button:hover {
+    background-color: #adb3dc;
+  }
+  /* Existing CSS */
+/* Student Dashboard Container */
+.student-dashboard {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Dashboard Header */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #dddddd;
+}
+
+.dashboard-header h1 {
+  color: #333333;
+  font-size: 1.8rem;
+  margin: 0;
+}
+
+/* Dashboard Sections - Shared Styles */
+.dashboard-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.dashboard-section h2 {
+  color: #444fc5;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 1.4rem;
+}
+
+/* Course List */
+.course-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.course-list li {
+  background-color: #ffffff;
+  padding: 1rem;
+  border-radius: 6px;
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.course-list li:hover {
+  transform: translateY(-2px);
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Assignment List */
+.assignment-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.assignment-list li {
+  background-color: #ffffff;
+  padding: 1rem;
+  margin-bottom: 0.8rem;
+  border-radius: 6px;
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.assignment-list li:last-child {
+  margin-bottom: 0;
+}
+
+/* Announcement List */
+.announcement-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.announcement-list li {
+  background-color: #ffffff;
+  padding: 1rem;
+  margin-bottom: 0.8rem;
+  border-radius: 6px;
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.announcement-list li:before {
+  content: "•";
+  color: #444fc5;
+  font-size: 1.5rem;
+  position: absolute;
+  left: 0.5rem;
+  top: 0.7rem;
+}
+
+.announcement-list li:last-child {
+  margin-bottom: 0;
+}
+
+/* Logout Button - Matching existing style */
+.logout-btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 5px;
+  background-color: #5f51fb;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.logout-btn:hover {
+  background-color: #513fd8;
+}
+
+/* Loading and Error States */
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #555555;
+  font-size: 1.2rem;
+}
+
+.error {
+  text-align: center;
+  padding: 2rem;
+  color: #e02020;
+  font-size: 1.2rem;
+}    
+/* Employer Dashboard Specific Styles */
+.employer-dashboard {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 2rem;
+}
+
+.company-info {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.company-info p {
+  margin: 0.5rem 0;
+}
+
+.job-list,
+.application-list {
+  list-style-type: none;
+  padding: 0;
+}
+
+.job-list li,
+.application-list li {
+  background: #ffffff;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Shared dashboard styles */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.dashboard-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.logout-btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 5px;
+  background-color: #414fe1;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.logout-btn:hover {
+  background-color: #414ee0;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #555;
+}
+
+.error {
+  text-align: center;
+  padding: 2rem;
+  color: #dc3545;
+}
+
+/* Alumni Dashboard Specific Styles */
+.alumni-dashboard {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 2rem;
+}
+
+.status-card {
+  background: #e8f4fd;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border-left: 4px solid #3498db;
+}
+
+.skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  padding: 0;
+  list-style: none;
+}
+
+.skill-item {
+  background: #e0f7fa;
+  padding: 0.6rem 1rem;
+  border-radius: 20px;
+  color: #00695c;
+  font-size: 0.9rem;
+}
+
+.achievements-list,
+.mentorship-list {
+  padding: 0;
+  list-style: none;
+}
+
+.achievement-item,
+.opportunity-item {
+  padding: 0.8rem;
+  margin-bottom: 0.5rem;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Shared dashboard styles */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.dashboard-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.logout-btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 5px;
+  background-color: #5145d2;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.logout-btn:hover {
+  background-color: #4032de;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #555;
+}
+
+.error {
+  text-align: center;
+  padding: 2rem;
+  color: #dc3545;
+}
+ 
