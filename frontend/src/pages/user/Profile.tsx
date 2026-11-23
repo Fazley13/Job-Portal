@@ -1,789 +1,341 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useAuth } from '../../contexts/AuthContext';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import {
+  Briefcase, Building2, Github, Globe, GraduationCap, KeyRound, Linkedin, Loader2, MapPin, Pencil, Plus, Save, Users, X,
+} from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import CreatePostForm from '../../components/social/CreatePostForm';
 import PostCard from '../../components/social/PostCard';
 import CVUploader from '../../components/social/CVUploader';
 import ProfilePictureUpload from '../../components/user/ProfilePictureUpload';
-import { 
-  User, 
-  Mail, 
-  MapPin, 
-  Calendar, 
-  Briefcase, 
-  GraduationCap, 
-  Edit, 
-  Save, 
-  X, 
-  Plus,
-  MessageSquare
-} from 'lucide-react';
+import { Avatar, EmptyState, PageContainer, PageLoader, RoleBadge, Section } from '../../components/ui';
 
-interface Post {
-  _id: string;
-  content: string;
-  type: string;
-  author: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-    profile?: {
-      avatar?: string;
-    }
-  };
-  createdAt: string;
-  tags: string[];
-  likes: Array<{ user: string }>;
-  comments: Array<{
-    _id: string;
-    user: {
-      _id: string;
-      firstName: string;
-      lastName: string;
-      profile?: {
-        avatar?: string;
-      }
-    };
-    content: string;
-    createdAt: string;
-  }>;
-}
+type Tab = 'overview' | 'posts' | 'resume' | 'security';
 
-interface CV {
-  _id: string;
-  originalName: string;
-  fileSize: number;
-  fileUrl: string;
-  visibility: string;
-  downloadCount: number;
-  createdAt: string;
-}
+const emptyProfile = (u: any) => ({
+  bio: u?.profile?.bio || '',
+  skills: (u?.profile?.skills || []) as string[],
+  university: u?.profile?.university || '',
+  graduationYear: u?.profile?.graduationYear ? String(u.profile.graduationYear) : '',
+  company: u?.profile?.company || '',
+  position: u?.profile?.position || '',
+  location: u?.profile?.location || '',
+  linkedin: u?.profile?.linkedin || '',
+  github: u?.profile?.github || '',
+  website: u?.profile?.website || '',
+});
+
+/** Which parts of the profile matter for each role. */
+const roleConfig = {
+  student: { education: true, work: false, skillsLabel: 'Skills', github: true, resume: true, posts: true, bioHint: 'Tell employers and alumni about your studies and what you want to do next.' },
+  alumni: { education: true, work: true, skillsLabel: 'Areas you can mentor in', github: true, resume: true, posts: true, bioHint: 'Share your journey and what students can learn from you.' },
+  employer: { education: false, work: true, skillsLabel: '', github: false, resume: false, posts: true, bioHint: 'Describe your organisation and the kind of people you hire.' },
+  admin: { education: false, work: false, skillsLabel: '', github: false, resume: false, posts: false, bioHint: 'A short note about your role on the platform.' },
+} as const;
+
+const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <label className="block">
+    <span className="mb-1.5 block text-sm font-medium text-gray-700">{label}</span>
+    {children}
+  </label>
+);
+
+const InfoRow: React.FC<{ icon: React.ComponentType<{ className?: string }>; label: string; value?: React.ReactNode }> = ({ icon: Icon, label, value }) => (
+  <div className="flex items-start gap-3">
+    <span className="rounded-lg bg-gray-100 p-2 text-gray-500"><Icon className="h-4 w-4" /></span>
+    <div className="min-w-0">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="break-words text-sm font-medium text-gray-900">{value || <span className="font-normal text-gray-400">Not added yet</span>}</p>
+    </div>
+  </div>
+);
 
 const Profile: React.FC = () => {
   const { user, updateProfile, refreshUser } = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
+  const role = (user?.role || 'student') as keyof typeof roleConfig;
+  const cfg = roleConfig[role];
+
+  const tabs = useMemo(() => {
+    const t: { id: Tab; label: string }[] = [{ id: 'overview', label: 'Overview' }];
+    if (cfg.posts) t.push({ id: 'posts', label: 'Posts' });
+    if (cfg.resume) t.push({ id: 'resume', label: 'Resume' });
+    t.push({ id: 'security', label: 'Security' });
+    return t;
+  }, [cfg]);
+
+  const [tab, setTab] = useState<Tab>('overview');
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [firstName, setFirstName] = useState(user?.firstName || '');
+  const [lastName, setLastName] = useState(user?.lastName || '');
+  const [form, setForm] = useState(emptyProfile(user));
   const [newSkill, setNewSkill] = useState('');
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [cv, setCV] = useState<CV | null>(null);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [cv, setCV] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'posts' | 'about'>('posts');
-  
-  const [formData, setFormData] = useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    email: user?.email || '',
-    profile: {
-      avatar: user?.profile?.avatar || '',
-      bio: user?.profile?.bio || '',
-      skills: user?.profile?.skills || [],
-      university: user?.profile?.university || '',
-      graduationYear: user?.profile?.graduationYear || '',
-      company: user?.profile?.company || '',
-      position: user?.profile?.position || '',
-      location: user?.profile?.location || '',
-      linkedin: user?.profile?.linkedin || '',
-      github: user?.profile?.github || '',
-      website: user?.profile?.website || ''
-    }
-  });
+  const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [pwSaving, setPwSaving] = useState(false);
 
-  useEffect(() => {
-    fetchUserData();
-  }, []);
-
-  const fetchUserData = async () => {
+  const load = useCallback(async () => {
+    if (!user) return;
     try {
-      setLoading(true);
-      
-      // Fetch user posts
-      try {
-        const postsRes = await axios.get(`/posts/user/${user?._id}`);
-        setPosts(postsRes.data.posts || []);
-      } catch (error) {
-        console.error('Failed to load posts data:', error);
-      }
-      
-      // Fetch CV
-      try {
-        const cvRes = await axios.get('/cv/my');
-        setCV(cvRes.data.cv || null);
-      } catch (error) {
-        console.error('Failed to load CV data:', error);
-      }
-      
-    } catch (error) {
-      console.error('Failed to load profile data:', error);
-      toast.error('Failed to load profile data');
+      const [postsRes, cvRes] = await Promise.all([
+        cfg.posts ? axios.get(`/posts/user/${user._id}`).catch(() => null) : Promise.resolve(null),
+        cfg.resume ? axios.get('/cv/my').catch(() => null) : Promise.resolve(null),
+      ]);
+      setPosts(postsRes?.data?.posts || []);
+      setCV(cvRes?.data?.cv || null);
     } finally {
       setLoading(false);
     }
+  }, [user, cfg]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const reset = () => {
+    setFirstName(user?.firstName || '');
+    setLastName(user?.lastName || '');
+    setForm(emptyProfile(user));
+    setNewSkill('');
   };
 
-  const handleSave = async () => {
+  const save = async () => {
+    if (!firstName.trim() || !lastName.trim()) return toast.error('First and last name are required');
+    setSaving(true);
     try {
-      await updateProfile(formData);
-      setIsEditing(false);
-      await refreshUser();
-      toast.success('Profile updated successfully');
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      // Error handled in context
-    }
-  };
-
-  const handleCancel = () => {
-    setFormData({
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      email: user?.email || '',
-      profile: {
-        avatar: user?.profile?.avatar || '',
-        bio: user?.profile?.bio || '',
-        skills: user?.profile?.skills || [],
-        university: user?.profile?.university || '',
-        graduationYear: user?.profile?.graduationYear || '',
-        company: user?.profile?.company || '',
-        position: user?.profile?.position || '',
-        location: user?.profile?.location || '',
-        linkedin: user?.profile?.linkedin || '',
-        github: user?.profile?.github || '',
-        website: user?.profile?.website || ''
-      }
-    });
-    setIsEditing(false);
-  };
-
-  const handleAvatarUpdated = (avatarUrl: string) => {
-    setFormData({
-      ...formData,
-      profile: {
-        ...formData.profile,
-        avatar: avatarUrl
-      }
-    });
-    
-    // If not in edit mode, save immediately
-    if (!isEditing) {
-      updateProfile({
-        ...formData,
-        profile: {
-          ...formData.profile,
-          avatar: avatarUrl
-        }
-      }).then(() => {
-        refreshUser();
-      }).catch(error => {
-        console.error('Error updating avatar:', error);
-      });
+      const profile: any = { ...form };
+      if (profile.graduationYear === '') delete profile.graduationYear;
+      else profile.graduationYear = Number(profile.graduationYear);
+      await updateProfile({ firstName, lastName, profile });
+      setEditing(false);
+    } catch {
+      /* toast shown by context */
+    } finally {
+      setSaving(false);
     }
   };
 
   const addSkill = () => {
-    if (newSkill.trim() && !formData.profile.skills.includes(newSkill.trim())) {
-      setFormData({
-        ...formData,
-        profile: {
-          ...formData.profile,
-          skills: [...formData.profile.skills, newSkill.trim()]
-        }
-      });
-      setNewSkill('');
-    }
+    const s = newSkill.trim();
+    if (s && !form.skills.includes(s)) setForm({ ...form, skills: [...form.skills, s] });
+    setNewSkill('');
   };
 
-  const removeSkill = (skillToRemove: string) => {
-    setFormData({
-      ...formData,
-      profile: {
-        ...formData.profile,
-        skills: formData.profile.skills.filter(skill => skill !== skillToRemove)
-      }
-    });
-  };
-
-  const handlePostCreated = async () => {
+  const changePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw.newPassword.length < 6) return toast.error('New password must be at least 6 characters');
+    if (pw.newPassword !== pw.confirm) return toast.error('New passwords do not match');
+    setPwSaving(true);
     try {
-      // Fetch the updated posts
-      const response = await axios.get(`/posts/user/${user?._id}`);
-      setPosts(response.data.posts || []);
-    } catch (error) {
-      console.error('Error refreshing posts after creation:', error);
+      await axios.put('/auth/password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword });
+      toast.success('Password updated');
+      setPw({ currentPassword: '', newPassword: '', confirm: '' });
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Could not update password');
+    } finally {
+      setPwSaving(false);
     }
   };
 
-  const handlePostDeleted = async (postId: string) => {
-    setPosts(posts.filter(post => post._id !== postId));
-  };
-
-  const handleCVUpdated = () => {
-    fetchUserData();
-  };
-
-  const getRoleColor = (role: string) => {
-    const colors = {
-      student: 'bg-blue-500',
-      alumni: 'bg-emerald-500',
-      employer: 'bg-purple-500',
-      admin: 'bg-red-500'
-    };
-    return colors[role as keyof typeof colors] || 'bg-gray-500';
-  };
+  if (!user) return null;
+  const p = user.profile || {};
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [key]: e.target.value });
 
   return (
     <DashboardLayout>
-      <div className="p-8">
-        {/* Profile Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg p-6 shadow-sm border border-gray-200 mb-8"
-        >
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-col md:flex-row md:items-center md:space-x-6">
-              <div className="flex justify-center mb-4 md:mb-0">
-                {isEditing ? (
-                  <ProfilePictureUpload 
-                    currentAvatar={user?.profile?.avatar} 
-                    onAvatarUpdated={handleAvatarUpdated} 
-                  />
+      <PageContainer className="space-y-6">
+        {/* Header */}
+        <div className="card overflow-hidden">
+          <div className="h-24 bg-blue-700 sm:h-28">
+            <div className="pattern-dots h-full w-full" aria-hidden="true" />
+          </div>
+          <div className="px-5 pb-5 sm:px-8">
+            <div className="-mt-12 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-start">
+                {editing ? (
+                  <div className="rounded-2xl bg-white p-3 shadow-card">
+                    <ProfilePictureUpload currentAvatar={p.avatar} onAvatarUpdated={() => refreshUser()} />
+                  </div>
                 ) : (
-                  <div className="relative">
-                    <div className="w-32 h-32 bg-gray-300 rounded-full flex items-center justify-center overflow-hidden">
-                      {user?.profile?.avatar ? (
-                        <img 
-                          src={user.profile.avatar} 
-                          alt={`${user.firstName} ${user.lastName}`} 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <User className="h-16 w-16 text-gray-400" />
-                      )}
-                    </div>
-                    <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${getRoleColor(user?.role || '')}`}></div>
-                  </div>
+                  <Avatar name={`${user.firstName} ${user.lastName}`} src={p.avatar} size="xl" className="!h-24 !w-24 !ring-4" />
                 )}
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 text-center md:text-left">
-                  {user?.firstName} {user?.lastName}
-                </h1>
-                <p className="text-gray-600 capitalize text-center md:text-left">{user?.role}</p>
-                <div className="flex flex-col md:flex-row md:items-center md:space-x-4 mt-2 text-sm text-gray-500">
-                  <div className="flex items-center justify-center md:justify-start space-x-1">
-                    <Mail className="h-4 w-4" />
-                    <span>{user?.email}</span>
-                  </div>
-                  <div className="flex items-center justify-center md:justify-start space-x-1 mt-1 md:mt-0">
-                    <Calendar className="h-4 w-4" />
-                    <span>Joined January 2024</span>
-                  </div>
+                <div className="pb-1 sm:mt-14">
+                  <h1 className="font-display text-2xl font-bold">{user.firstName} {user.lastName}</h1>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    {[p.position, p.company].filter(Boolean).join(' at ') || user.email}
+                  </p>
+                  <RoleBadge role={user.role} className="mt-2" />
                 </div>
               </div>
-            </div>
-            
-            <div className="flex items-center justify-center md:justify-end space-x-2 mt-4 md:mt-0">
-              {isEditing ? (
-                <>
-                  <button
-                    onClick={handleSave}
-                    className="flex items-center space-x-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Save className="h-4 w-4" />
-                    <span>Save</span>
-                  </button>
-                  <button
-                    onClick={handleCancel}
-                    className="flex items-center space-x-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                    <span>Cancel</span>
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center space-x-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <Edit className="h-4 w-4" />
-                  <span>Edit Profile</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </motion.div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2">
-            {/* Tabs */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6"
-            >
-              <div className="flex">
-                <button
-                  onClick={() => setActiveTab('posts')}
-                  className={`flex-1 py-3 text-center font-medium ${
-                    activeTab === 'posts'
-                      ? 'text-blue-600 border-b-2 border-blue-600'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Posts
-                </button>
-                <button
-                  onClick={() => setActiveTab('about')}
-                  className={`flex-1 py-3 text-center font-medium ${
-                    activeTab === 'about'
-                      ? 'text-blue-600 border-b-2 border-blue-600'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  About
-                </button>
-              </div>
-            </motion.div>
-
-            {/* Content */}
-            {activeTab === 'posts' ? (
-              <div className="space-y-6">
-                {/* Create Post Form */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <CreatePostForm onPostCreated={handlePostCreated} />
-                </motion.div>
-                
-                {/* Posts */}
-                {loading ? (
-                  <div className="flex justify-center items-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  </div>
-                ) : posts.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200"
-                  >
-                    <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No posts yet</h3>
-                    <p className="text-gray-600 mb-4">Share your thoughts, achievements, or career updates</p>
-                  </motion.div>
+              <div className="flex gap-2 sm:mt-14">
+                {editing ? (
+                  <>
+                    <button onClick={() => { reset(); setEditing(false); }} className="btn-secondary"><X className="h-4 w-4" /> Cancel</button>
+                    <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-60">
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save changes
+                    </button>
+                  </>
                 ) : (
-                  <div className="space-y-6">
-                    {posts.map((post, index) => (
-                      <motion.div
-                        key={post._id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 + index * 0.1 }}
-                      >
-                        <PostCard post={post} onDelete={handlePostDeleted} />
-                      </motion.div>
-                    ))}
-                  </div>
+                  <button onClick={() => { reset(); setEditing(true); setTab('overview'); }} className="btn-secondary"><Pencil className="h-4 w-4" /> Edit profile</button>
                 )}
               </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Basic Information */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-                >
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
-                  
-                  {isEditing ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            First Name
-                          </label>
-                          <input
-                            type="text"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={formData.firstName}
-                            onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Last Name
-                          </label>
-                          <input
-                            type="text"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={formData.lastName}
-                            onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Bio
-                        </label>
-                        <textarea
-                          rows={4}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Tell us about yourself..."
-                          value={formData.profile.bio}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            profile: {...formData.profile, bio: e.target.value}
-                          })}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Location
-                        </label>
-                        <input
-                          type="text"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="City, Country"
-                          value={formData.profile.location}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            profile: {...formData.profile, location: e.target.value}
-                          })}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            First Name
-                          </label>
-                          <p className="text-gray-900">{user?.firstName}</p>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Last Name
-                          </label>
-                          <p className="text-gray-900">{user?.lastName}</p>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Bio
-                        </label>
-                        <p className="text-gray-900">
-                          {user?.profile?.bio || 'No bio added yet.'}
-                        </p>
-                      </div>
-
-                      {user?.profile?.location && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Location
-                          </label>
-                          <div className="flex items-center space-x-1">
-                            <MapPin className="h-4 w-4 text-gray-500" />
-                            <span className="text-gray-900">{user.profile.location}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-
-                {/* Education & Experience */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-                >
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                    {user?.role === 'student' || user?.role === 'alumni' ? 'Education' : 'Experience'}
-                  </h2>
-                  
-                  {isEditing ? (
-                    <div className="space-y-4">
-                      {(user?.role === 'student' || user?.role === 'alumni') ? (
-                        <>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              University
-                            </label>
-                            <input
-                              type="text"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Your university"
-                              value={formData.profile.university}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                profile: {...formData.profile, university: e.target.value}
-                              })}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Graduation Year
-                            </label>
-                            <input
-                              type="number"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="2024"
-                              value={formData.profile.graduationYear}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                profile: {...formData.profile, graduationYear: parseInt(e.target.value)}
-                              })}
-                            />
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Company
-                            </label>
-                            <input
-                              type="text"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Your company"
-                              value={formData.profile.company}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                profile: {...formData.profile, company: e.target.value}
-                              })}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Position
-                            </label>
-                            <input
-                              type="text"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Your position"
-                              value={formData.profile.position}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                profile: {...formData.profile, position: e.target.value}
-                              })}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {(user?.role === 'student' || user?.role === 'alumni') ? (
-                        <>
-                          <div className="flex items-center space-x-3">
-                            <GraduationCap className="h-5 w-5 text-blue-600" />
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                {user?.profile?.university || 'University not specified'}
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                Class of {user?.profile?.graduationYear || 'N/A'}
-                              </p>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center space-x-3">
-                            <Briefcase className="h-5 w-5 text-purple-600" />
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                {user?.profile?.position || 'Position not specified'}
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                {user?.profile?.company || 'Company not specified'}
-                              </p>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-
-                {/* Skills */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-                >
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Skills</h2>
-                  
-                  {isEditing ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Add a skill"
-                          value={newSkill}
-                          onChange={(e) => setNewSkill(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && addSkill()}
-                        />
-                        <button
-                          type="button"
-                          onClick={addSkill}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-2">
-                        {formData.profile.skills.map((skill, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
-                          >
-                            {skill}
-                            <button
-                              type="button"
-                              onClick={() => removeSkill(skill)}
-                              className="ml-2 text-blue-600 hover:text-blue-800"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      {user?.profile?.skills && user.profile.skills.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {user.profile.skills.map((skill, index) => (
-                            <span
-                              key={index}
-                              className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 text-sm">No skills added yet.</p>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-
-                {/* Social Links */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-                >
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Social Links</h2>
-                  
-                  {isEditing ? (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          LinkedIn URL
-                        </label>
-                        <input
-                          type="url"
-                          placeholder="https://linkedin.com/in/yourprofile"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={formData.profile.linkedin}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            profile: {...formData.profile, linkedin: e.target.value}
-                          })}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          GitHub URL
-                        </label>
-                        <input
-                          type="url"
-                          placeholder="https://github.com/yourusername"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={formData.profile.github}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            profile: {...formData.profile, github: e.target.value}
-                          })}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Personal Website
-                        </label>
-                        <input
-                          type="url"
-                          placeholder="https://yourwebsite.com"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={formData.profile.website}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            profile: {...formData.profile, website: e.target.value}
-                          })}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {user?.profile?.linkedin && (
-                        <a href={user.profile.linkedin} target="_blank" rel="noopener noreferrer" className="block text-blue-600 hover:text-blue-700">
-                          LinkedIn Profile
-                        </a>
-                      )}
-                      {user?.profile?.github && (
-                        <a href={user.profile.github} target="_blank" rel="noopener noreferrer" className="block text-blue-600 hover:text-blue-700">
-                          GitHub Profile
-                        </a>
-                      )}
-                      {user?.profile?.website && (
-                        <a href={user.profile.website} target="_blank" rel="noopener noreferrer" className="block text-blue-600 hover:text-blue-700">
-                          Personal Website
-                        </a>
-                      )}
-                      {!user?.profile?.linkedin && !user?.profile?.github && !user?.profile?.website && (
-                        <p className="text-gray-500 text-sm">No social links added yet.</p>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-              </div>
-            )}
+            </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* CV Uploader */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <CVUploader cv={cv} onCVUpdated={handleCVUpdated} />
-            </motion.div>
+          <div className="flex gap-1 overflow-x-auto border-t border-gray-100 px-3 sm:px-6" role="tablist">
+            {tabs.map((t) => (
+              <button
+                key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+                className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold ${
+                  tab === t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
-      </div>
+
+        {/* Overview */}
+        {tab === 'overview' && (
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="space-y-6 lg:col-span-2">
+              <Section title="About">
+                {editing ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="First name"><input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full px-3 py-2.5" /></Field>
+                      <Field label="Last name"><input value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full px-3 py-2.5" /></Field>
+                    </div>
+                    <Field label="Bio">
+                      <textarea value={form.bio} onChange={set('bio')} rows={4} maxLength={500} placeholder={cfg.bioHint} className="w-full px-3 py-2.5" />
+                    </Field>
+                  </div>
+                ) : p.bio ? (
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-gray-700">{p.bio}</p>
+                ) : (
+                  <EmptyState title="No bio yet" description={cfg.bioHint} action={<button onClick={() => { reset(); setEditing(true); }} className="btn-primary">Add a bio</button>} />
+                )}
+              </Section>
+
+              {cfg.skillsLabel && (
+                <Section title={cfg.skillsLabel}>
+                  <div className="flex flex-wrap gap-2">
+                    {(editing ? form.skills : p.skills || []).map((s: string) => (
+                      <span key={s} className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+                        {s}
+                        {editing && (
+                          <button onClick={() => setForm({ ...form, skills: form.skills.filter((x) => x !== s) })} aria-label={`Remove ${s}`}>
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    {!editing && !(p.skills || []).length && <p className="text-sm text-gray-400">Nothing added yet.</p>}
+                  </div>
+                  {editing && (
+                    <div className="mt-4 flex gap-2">
+                      <input
+                        value={newSkill} onChange={(e) => setNewSkill(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }}
+                        placeholder="Type and press Enter" className="flex-1 px-3 py-2.5"
+                      />
+                      <button type="button" onClick={addSkill} className="btn-secondary"><Plus className="h-4 w-4" /> Add</button>
+                    </div>
+                  )}
+                </Section>
+              )}
+
+              {role === 'employer' && !editing && (
+                <Section title="Your hiring workspace">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {[
+                      { to: '/jobs/manage', label: 'My jobs', icon: Briefcase },
+                      { to: '/companies/manage', label: 'My companies', icon: Building2 },
+                      { to: '/applications/manage', label: 'Applicants', icon: Users },
+                    ].map(({ to, label, icon: Icon }) => (
+                      <Link key={to} to={to} className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 text-sm font-semibold hover:border-blue-300 hover:bg-blue-50">
+                        <Icon className="h-5 w-5 text-blue-700" /> {label}
+                      </Link>
+                    ))}
+                  </div>
+                </Section>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              <Section title="Details">
+                {editing ? (
+                  <div className="space-y-4">
+                    {cfg.work && (
+                      <>
+                        <Field label={role === 'employer' ? 'Organisation' : 'Current company'}><input value={form.company} onChange={set('company')} className="w-full px-3 py-2.5" /></Field>
+                        <Field label="Job title"><input value={form.position} onChange={set('position')} className="w-full px-3 py-2.5" /></Field>
+                      </>
+                    )}
+                    {cfg.education && (
+                      <>
+                        <Field label="University"><input value={form.university} onChange={set('university')} className="w-full px-3 py-2.5" /></Field>
+                        <Field label="Graduation year"><input type="number" min={1950} max={2100} value={form.graduationYear} onChange={set('graduationYear')} className="w-full px-3 py-2.5" /></Field>
+                      </>
+                    )}
+                    <Field label="Location"><input value={form.location} onChange={set('location')} placeholder="City, Country" className="w-full px-3 py-2.5" /></Field>
+                    <Field label="LinkedIn"><input value={form.linkedin} onChange={set('linkedin')} placeholder="https://linkedin.com/in/…" className="w-full px-3 py-2.5" /></Field>
+                    {cfg.github && <Field label="GitHub"><input value={form.github} onChange={set('github')} placeholder="https://github.com/…" className="w-full px-3 py-2.5" /></Field>}
+                    <Field label="Website"><input value={form.website} onChange={set('website')} placeholder="https://…" className="w-full px-3 py-2.5" /></Field>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {cfg.work && <InfoRow icon={Briefcase} label={role === 'employer' ? 'Organisation' : 'Works at'} value={[p.position, p.company].filter(Boolean).join(' · ')} />}
+                    {cfg.education && <InfoRow icon={GraduationCap} label="Education" value={[p.university, p.graduationYear].filter(Boolean).join(' · ')} />}
+                    <InfoRow icon={MapPin} label="Location" value={p.location} />
+                    <InfoRow icon={Linkedin} label="LinkedIn" value={p.linkedin && <a href={p.linkedin} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">{p.linkedin}</a>} />
+                    {cfg.github && <InfoRow icon={Github} label="GitHub" value={p.github && <a href={p.github} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">{p.github}</a>} />}
+                    <InfoRow icon={Globe} label="Website" value={p.website && <a href={p.website} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">{p.website}</a>} />
+                  </div>
+                )}
+              </Section>
+            </div>
+          </div>
+        )}
+
+        {/* Posts */}
+        {tab === 'posts' && cfg.posts && (
+          <div className="mx-auto max-w-2xl space-y-4">
+            <CreatePostForm onPostCreated={load} />
+            {loading ? <PageLoader /> : posts.length === 0 ? (
+              <div className="card"><EmptyState title="You haven’t posted yet" description="Share an update, a win or something you learned." /></div>
+            ) : (
+              posts.map((post) => <PostCard key={post._id} post={post} onDelete={(id: string) => setPosts((prev) => prev.filter((x) => x._id !== id))} />)
+            )}
+          </div>
+        )}
+
+        {/* Resume */}
+        {tab === 'resume' && cfg.resume && (
+          <div className="mx-auto max-w-2xl"><CVUploader cv={cv} onCVUpdated={load} /></div>
+        )}
+
+        {/* Security */}
+        {tab === 'security' && (
+          <div className="mx-auto max-w-lg">
+            <Section title="Change password">
+              <form onSubmit={changePassword} className="space-y-4">
+                <Field label="Current password"><input type="password" required autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} className="w-full px-3 py-2.5" /></Field>
+                <Field label="New password"><input type="password" required minLength={6} autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw({ ...pw, newPassword: e.target.value })} className="w-full px-3 py-2.5" /></Field>
+                <Field label="Confirm new password"><input type="password" required autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} className="w-full px-3 py-2.5" /></Field>
+                <button type="submit" disabled={pwSaving} className="btn-primary disabled:opacity-60">
+                  {pwSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} Update password
+                </button>
+              </form>
+              <p className="mt-4 text-xs text-gray-500">Signed in as {user.email}</p>
+            </Section>
+          </div>
+        )}
+      </PageContainer>
     </DashboardLayout>
   );
 };

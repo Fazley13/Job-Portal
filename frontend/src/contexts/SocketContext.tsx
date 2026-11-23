@@ -75,7 +75,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     if (!user) return;
 
     // Initialize socket connection
-    const socketInstance = io('http://localhost:8080', {
+    const socketInstance = io((import.meta as any).env?.VITE_API_URL || 'http://localhost:8080', {
       withCredentials: true,
       transports: ['websocket', 'polling'],
       timeout: 5000,

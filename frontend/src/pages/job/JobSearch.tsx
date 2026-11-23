@@ -97,7 +97,7 @@ const JobSearch: React.FC = () => {
   const fetchMyApplications = async () => {
     try {
       const response = await axios.get('/applications/my');
-      const appliedJobIds = new Set(response.data.applications.map((app: any) => app.jobId?._id || app.jobId));
+      const appliedJobIds = new Set<string>(response.data.applications.map((app: any) => app.jobId?._id || app.jobId));
       setAppliedJobs(appliedJobIds);
     } catch (error) {
       // Silently handle error - user might not have any applications yet

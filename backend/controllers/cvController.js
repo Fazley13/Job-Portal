@@ -134,7 +134,7 @@ export const getUserCV = async (req, res) => {
     }
 
     // Check visibility permissions
-    if (cv.visibility === 'private') {
+    if (cv.visibility === 'private' && userId !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'CV is private'
@@ -317,5 +317,21 @@ export const deleteCV = async (req, res) => {
       message: 'Server error',
       error: error.message
     });
+  }
+};
+
+// @desc    Download a user's active CV by user id
+// @route   GET /api/cv/user/:userId/download
+export const downloadUserCV = async (req, res) => {
+  try {
+    const cv = await CV.findOne({ user: req.params.userId, isActive: true });
+    if (!cv) {
+      return res.status(404).json({ success: false, message: 'CV not found' });
+    }
+    req.params.cvId = cv._id.toString();
+    return downloadCV(req, res);
+  } catch (error) {
+    console.error('Download user CV error:', error);
+    res.status(500).json({ success: false, message: 'Server error while downloading CV' });
   }
 };

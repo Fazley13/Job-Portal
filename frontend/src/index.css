@@ -2,4 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-/* You can add custom styles below if needed */
+@layer base {
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    @apply bg-gray-50 text-gray-800 antialiased font-sans;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  h1, h2, h3 { @apply font-display tracking-tight text-gray-900; }
+  ::selection { @apply bg-blue-200 text-blue-900; }
+
+  /* Consistent form controls across every page */
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']),
+  select, textarea {
+    @apply rounded-xl border-gray-300 bg-white text-gray-900 placeholder:text-gray-400;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    @apply outline-none border-blue-500 ring-2 ring-blue-500/25;
+  }
+  input[type='checkbox'], input[type='radio'] { @apply text-blue-600 focus:ring-blue-500; }
+
+  :focus-visible { @apply outline-2 outline-offset-2 outline-blue-500; }
+  button { @apply transition-colors duration-150; }
+  button:disabled { @apply cursor-not-allowed; }
+}
+
+@layer components {
+  .card { @apply bg-white rounded-2xl border border-gray-200/80 shadow-card; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all; }
+  .btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700 shadow-sm active:scale-[.98]; }
+  .btn-secondary { @apply btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50; }
+  .btn-accent { @apply btn bg-accent-400 text-gray-900 hover:bg-accent-300; }
+  .page-title { @apply text-2xl sm:text-3xl font-bold; }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { @apply bg-gray-300 rounded-full; }
+  .pattern-dots {
+    background-image: radial-gradient(rgba(255,255,255,.18) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+}

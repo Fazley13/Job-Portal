@@ -1,336 +1,197 @@
-import User from "../models/user.js"
-import Job from "../models/Job.js"
-import Application from "../models/Application.js"
+import mongoose from 'mongoose';
+import User from '../models/user.js';
+import Job from '../models/Job.js';
+import Application from '../models/Application.js';
+import CompanyApplication from '../models/CompanyApplication.js';
+import Company from '../models/Company.js';
+import Event from '../models/Event.js';
+import Follow from '../models/Follow.js';
+import Post from '../models/Post.js';
+import MentorshipProgram from '../models/Mentorship.js';
+import MentorshipSession from '../models/MentorshipSession.js';
+import UserRoadmapProgress from '../models/UserRoadmapProgress.js';
 
-// @desc    Get student dashboard stats
-// @route   GET /api/dashboard/student/stats
-// @access  Private (Student)
-export const getStudentStats = async (req, res) => {
-  try {
-    const userId = req.user.id
+const oid = (id) => new mongoose.Types.ObjectId(String(id));
 
-    // Get applications count
-    const applicationsCount = await Application.countDocuments({
-      applicantId: userId,
-    })
+const statusBreakdown = (rows) =>
+  rows.reduce((acc, r) => {
+    acc[r._id] = r.count;
+    return acc;
+  }, {});
 
-    // Get applications this week
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
+const upcomingEvents = (limit = 3) =>
+  Event.find({ startDateTime: { $gte: new Date() } })
+    .sort({ startDateTime: 1 })
+    .limit(limit)
+    .select('title type startDateTime isOnline location organizer')
+    .lean();
 
-    const recentApplications = await Application.countDocuments({
-      applicantId: userId,
-      appliedAt: { $gte: weekAgo },
-    })
+const studentSummary = async (user) => {
+  const id = oid(user._id);
+  const [apps, companyApps, followers, following, posts, roadmaps, program, events, jobs] = await Promise.all([
+    Application.aggregate([{ $match: { applicantId: id } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
+    CompanyApplication.countDocuments({ applicantId: id }),
+    Follow.countDocuments({ following: id }),
+    Follow.countDocuments({ follower: id }),
+    Post.countDocuments({ author: id, isActive: { $ne: false } }),
+    UserRoadmapProgress.find({ userId: id }).populate('roadmapId', 'title').lean(),
+    MentorshipProgram.findOne({ 'enrolledStudents.studentId': id, 'enrolledStudents.status': 'active' })
+      .select('title enrolledStudents')
+      .lean(),
+    upcomingEvents(),
+    Job.find({ isActive: true }).sort({ createdAt: -1 }).limit(4).select('title company location type createdAt').lean(),
+  ]);
+  const breakdown = statusBreakdown(apps);
+  const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+  const enrollment = program?.enrolledStudents?.find((s) => String(s.studentId) === String(user._id));
+  return {
+    applications: { total, ...breakdown },
+    companyApplications: companyApps,
+    followers,
+    following,
+    posts,
+    roadmaps: {
+      started: roadmaps.length,
+      completed: roadmaps.filter((r) => r.isCompleted).length,
+      items: roadmaps.slice(0, 3).map((r) => ({
+        id: r.roadmapId?._id,
+        title: r.roadmapId?.title || 'Roadmap',
+        skillsDone: r.completedSkills?.length || 0,
+      })),
+    },
+    mentorship: program ? { title: program.title, progress: enrollment?.progress || 0 } : null,
+    events,
+    jobs,
+    profileCompleteness: profileScore(user),
+  };
+};
 
-    // Get profile views (you'd implement this based on your analytics)
-    const profileViews = await User.findById(userId).select("profileViews")
+const alumniSummary = async (user) => {
+  const id = oid(user._id);
+  const [programs, sessions, followers, following, posts, events, ratings] = await Promise.all([
+    MentorshipProgram.find({ alumniId: id }).select('title isActive maxStudents enrolledStudents').lean(),
+    MentorshipSession.find({ alumniId: id, status: 'scheduled', scheduledDate: { $gte: new Date() } })
+      .sort({ scheduledDate: 1 })
+      .limit(4)
+      .populate('studentId', 'firstName lastName')
+      .select('title scheduledDate duration meetingLink studentId')
+      .lean(),
+    Follow.countDocuments({ following: id }),
+    Follow.countDocuments({ follower: id }),
+    Post.countDocuments({ author: id, isActive: { $ne: false } }),
+    upcomingEvents(),
+    MentorshipSession.aggregate([
+      { $match: { alumniId: id, 'feedback.fromStudent.rating': { $exists: true } } },
+      { $group: { _id: null, avg: { $avg: '$feedback.fromStudent.rating' }, count: { $sum: 1 } } },
+    ]),
+  ]);
+  const activeMentees = programs.reduce(
+    (sum, p) => sum + (p.enrolledStudents || []).filter((s) => s.status === 'active').length,
+    0
+  );
+  return {
+    programs: {
+      total: programs.length,
+      active: programs.filter((p) => p.isActive).length,
+      items: programs.slice(0, 4).map((p) => ({
+        _id: p._id,
+        title: p.title,
+        enrolled: (p.enrolledStudents || []).filter((s) => s.status === 'active').length,
+        capacity: p.maxStudents,
+      })),
+    },
+    activeMentees,
+    upcomingSessions: sessions,
+    averageRating: ratings[0] ? Number(ratings[0].avg.toFixed(1)) : null,
+    ratingCount: ratings[0]?.count || 0,
+    followers,
+    following,
+    posts,
+    events,
+    profileCompleteness: profileScore(user),
+  };
+};
 
-    // Get career progress from roadmaps
-    const UserRoadmap = await import("../models/UserRoadmap.js").then((m) => m.default)
-    const roadmaps = await UserRoadmap.find({ userId })
-
-    const skillsCompleted = roadmaps.reduce((sum, roadmap) => {
-      return sum + (roadmap.completedPhases?.length || 0)
-    }, 0)
-
-    const careerScore =
-      roadmaps.length > 0
-        ? Math.round(roadmaps.reduce((sum, roadmap) => sum + (roadmap.totalProgress || 0), 0) / roadmaps.length)
-        : 0
-
-    res.status(200).json({
-      success: true,
-      stats: {
-        applicationsSent: applicationsCount,
-        recentApplications,
-        profileViews: profileViews?.profileViews || 0,
-        skillsCompleted,
-        careerScore,
-      },
-    })
-  } catch (error) {
-    console.error("Get student stats error:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch student stats",
-      error: error.message,
-    })
-  }
-}
-
-// @desc    Get employer dashboard stats
-// @route   GET /api/dashboard/employer/stats
-// @access  Private (Employer)
-export const getEmployerStats = async (req, res) => {
-  try {
-    const userId = req.user.id
-
-    // Get active job posts
-    const activeJobs = await Job.countDocuments({
-      createdBy: userId,
-      isActive: true,
-    })
-
-    // Get total applications for employer's jobs
-    const employerJobs = await Job.find({ createdBy: userId }).select("_id")
-    const jobIds = employerJobs.map((job) => job._id)
-
-    const totalApplications = await Application.countDocuments({
-      jobId: { $in: jobIds },
-    })
-
-    // Get applications this week
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-
-    const recentApplications = await Application.countDocuments({
-      jobId: { $in: jobIds },
-      appliedAt: { $gte: weekAgo },
-    })
-
-    // Calculate hire success rate
-    const appointedCount = await Application.countDocuments({
-      jobId: { $in: jobIds },
-      status: "appointed",
-    })
-
-    const hireSuccessRate = totalApplications > 0 ? Math.round((appointedCount / totalApplications) * 100) : 0
-
-    // Get profile views (implement based on your analytics)
-    const profileViews = Math.floor(Math.random() * 1000) + 500 // Replace with real analytics
-
-    res.status(200).json({
-      success: true,
-      stats: {
-        activeJobPosts: activeJobs,
-        totalApplications,
-        recentApplications,
-        hireSuccessRate,
-        profileViews,
-      },
-    })
-  } catch (error) {
-    console.error("Get employer stats error:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch employer stats",
-      error: error.message,
-    })
-  }
-}
-
-// @desc    Get employer hiring pipeline
-// @route   GET /api/dashboard/employer/pipeline
-// @access  Private (Employer)
-export const getEmployerPipeline = async (req, res) => {
-  try {
-    const userId = req.user.id
-
-    // Get employer's jobs
-    const employerJobs = await Job.find({ createdBy: userId }).select("_id")
-    const jobIds = employerJobs.map((job) => job._id)
-
-    // Get pipeline stats
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-
-    const [newApplications, underReview, shortlisted, appointed] = await Promise.all([
-      Application.countDocuments({
-        jobId: { $in: jobIds },
-        appliedAt: { $gte: weekAgo },
-        status: "pending",
-      }),
-      Application.countDocuments({
-        jobId: { $in: jobIds },
-        status: "pending",
-        appliedAt: { $lt: weekAgo },
-      }),
-      Application.countDocuments({
-        jobId: { $in: jobIds },
-        status: "shortlisted",
-      }),
-      Application.countDocuments({
-        jobId: { $in: jobIds },
-        status: "appointed",
-      }),
-    ])
-
-    res.status(200).json({
-      success: true,
-      pipeline: {
-        newApplications,
-        underReview,
-        interviewsScheduled: Math.floor(shortlisted * 0.7), // Estimate
-        offersExtended: appointed,
-      },
-    })
-  } catch (error) {
-    console.error("Get employer pipeline error:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch hiring pipeline",
-      error: error.message,
-    })
-  }
-}
-
-// @desc    Get admin dashboard stats
-// @route   GET /api/admin/dashboard/stats
-// @access  Private (Admin)
-export const getAdminStats = async (req, res) => {
-  try {
-    // Get user counts by role
-    const userStats = await User.aggregate([
-      {
-        $group: {
-          _id: "$role",
-          count: { $sum: 1 },
-        },
-      },
-    ])
-
-    const userBreakdown = {
-      student: 0,
-      alumni: 0,
-      employer: 0,
-      admin: 0,
-    }
-
-    userStats.forEach((stat) => {
-      userBreakdown[stat._id] = stat.count
-    })
-
-    const totalUsers = Object.values(userBreakdown).reduce((sum, count) => sum + count, 0)
-
-    // Get recent registrations (last 7 days)
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-
-    const recentRegistrations = await User.countDocuments({
-      createdAt: { $gte: weekAgo },
-    })
-
-    // Get job stats
-    const [activeJobs, inactiveJobs] = await Promise.all([
-      Job.countDocuments({ isActive: true }),
-      Job.countDocuments({ isActive: false }),
-    ])
-
-    // Get application stats
-    const totalApplications = await Application.countDocuments()
-
-    res.status(200).json({
-      success: true,
-      stats: {
-        users: {
-          total: totalUsers,
-          breakdown: userBreakdown,
-          recentRegistrations,
-        },
-        jobs: {
-          active: activeJobs,
-          inactive: inactiveJobs,
-        },
-        applications: {
-          total: totalApplications,
-        },
-      },
-    })
-  } catch (error) {
-    console.error("Get admin stats error:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch admin stats",
-      error: error.message,
-    })
-  }
-}
-
-// @desc    Get recent activities
-// @route   GET /api/admin/activities/recent
-// @access  Private (Admin)
-export const getRecentActivities = async (req, res) => {
-  try {
-    const limit = Number.parseInt(req.query.limit) || 10
-
-    // Get recent user registrations
-    const recentUsers = await User.find()
+const employerSummary = async (user) => {
+  const id = oid(user._id);
+  const [jobs, activeJobs, apps, companies, events, recent, topJobs] = await Promise.all([
+    Job.countDocuments({ employerId: id }),
+    Job.countDocuments({ employerId: id, isActive: true }),
+    Application.aggregate([{ $match: { employerId: id } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
+    Company.countDocuments({ createdBy: id }),
+    Event.countDocuments({ postedBy: id }),
+    Application.find({ employerId: id })
       .sort({ createdAt: -1 })
-      .limit(limit)
-      .select("firstName lastName role createdAt")
+      .limit(5)
+      .populate('applicantId', 'firstName lastName')
+      .populate('jobId', 'title')
+      .select('status appliedAt applicantId jobId')
+      .lean(),
+    Job.find({ employerId: id }).sort({ applicationsCount: -1 }).limit(4).select('title applicationsCount isActive').lean(),
+  ]);
+  const breakdown = statusBreakdown(apps);
+  const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+  const hireRate = total ? Math.round(((breakdown.appointed || 0) / total) * 100) : 0;
+  return {
+    jobs: { total: jobs, active: activeJobs },
+    applications: { total, ...breakdown },
+    companies,
+    events,
+    hireRate,
+    recentApplications: recent,
+    topJobs,
+  };
+};
 
-    // Get recent job postings
-    const recentJobs = await Job.find()
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .populate("createdBy", "firstName lastName")
-      .select("title createdBy createdAt")
+const adminSummary = async () => {
+  const weekAgo = new Date(Date.now() - 7 * 864e5);
+  const [roles, newUsers, jobs, activeJobs, apps, companies, events, programs, pendingUsers, recentUsers] = await Promise.all([
+    User.aggregate([{ $group: { _id: '$role', count: { $sum: 1 } } }]),
+    User.countDocuments({ createdAt: { $gte: weekAgo } }),
+    Job.countDocuments(),
+    Job.countDocuments({ isActive: true }),
+    Application.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+    Company.countDocuments(),
+    Event.countDocuments(),
+    MentorshipProgram.countDocuments(),
+    User.countDocuments({ isActive: false }),
+    User.find().sort({ createdAt: -1 }).limit(5).select('firstName lastName role createdAt isActive').lean(),
+  ]);
+  const roleMap = statusBreakdown(roles);
+  const appMap = statusBreakdown(apps);
+  return {
+    users: { total: Object.values(roleMap).reduce((a, b) => a + b, 0), byRole: roleMap, newThisWeek: newUsers, deactivated: pendingUsers },
+    jobs: { total: jobs, active: activeJobs },
+    applications: { total: Object.values(appMap).reduce((a, b) => a + b, 0), ...appMap },
+    companies,
+    events,
+    mentorshipPrograms: programs,
+    recentUsers,
+  };
+};
 
-    // Get recent applications
-    const recentApplications = await Application.find()
-      .sort({ appliedAt: -1 })
-      .limit(limit)
-      .populate("applicantId", "firstName lastName")
-      .populate("jobId", "title")
-      .select("applicantId jobId appliedAt")
-
-    // Combine and format activities
-    const activities = []
-
-    recentUsers.forEach((user) => {
-      activities.push({
-        type: "user_registration",
-        message: `New ${user.role} registered`,
-        data: {
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-        },
-        timestamp: user.createdAt,
-      })
-    })
-
-    recentJobs.forEach((job) => {
-      activities.push({
-        type: "job_posting",
-        message: `New job posted: ${job.title}`,
-        data: {
-          firstName: job.createdBy.firstName,
-          lastName: job.createdBy.lastName,
-          jobTitle: job.title,
-        },
-        timestamp: job.createdAt,
-      })
-    })
-
-    recentApplications.forEach((app) => {
-      activities.push({
-        type: "job_application",
-        message: `Application submitted for ${app.jobId.title}`,
-        data: {
-          firstName: app.applicantId.firstName,
-          lastName: app.applicantId.lastName,
-          jobTitle: app.jobId.title,
-        },
-        timestamp: app.appliedAt,
-      })
-    })
-
-    // Sort by timestamp and limit
-    activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    const limitedActivities = activities.slice(0, limit)
-
-    res.status(200).json({
-      success: true,
-      activities: limitedActivities,
-    })
-  } catch (error) {
-    console.error("Get recent activities error:", error)
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch recent activities",
-      error: error.message,
-    })
-  }
+function profileScore(user) {
+  const p = user.profile || {};
+  const checks = [p.avatar, p.bio, p.skills?.length, p.location, p.linkedin || p.github || p.website];
+  if (user.role === 'student' || user.role === 'alumni') checks.push(p.university, p.graduationYear);
+  if (user.role === 'employer') checks.push(p.company, p.position);
+  const done = checks.filter(Boolean).length;
+  return Math.round((done / checks.length) * 100);
 }
+
+// @route GET /api/dashboard/summary  (role-aware)
+export const getDashboardSummary = async (req, res) => {
+  try {
+    const { role } = req.user;
+    let data;
+    if (role === 'student') data = await studentSummary(req.user);
+    else if (role === 'alumni') data = await alumniSummary(req.user);
+    else if (role === 'employer') data = await employerSummary(req.user);
+    else if (role === 'admin') data = await adminSummary();
+    else return res.status(403).json({ success: false, message: 'Unsupported role' });
+    res.json({ success: true, role, summary: data });
+  } catch (error) {
+    console.error('Dashboard summary error:', error);
+    res.status(500).json({ success: false, message: 'Failed to load dashboard' });
+  }
+};

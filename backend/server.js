@@ -21,14 +21,29 @@ import roadmapRoutes from './routes/roadmapRoutes.js';
 import companyRoutes from './routes/companyRoutes.js';
 import companyApplicationRoutes from './routes/companyApplicationRoutes.js';
 import mentorshipRoutes from './routes/mentorshipRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
+import alumniRoutes from './routes/alumniRoutes.js';
 
 dotenv.config();
+
+// Make sure upload folders exist (they are git-ignored on fresh clones)
+for (const dir of ['uploads', 'uploads/cvs', 'uploads/mentorship']) {
+  fs.mkdirSync(path.join(process.cwd(), dir), { recursive: true });
+}
+
+// Allow the Vite dev server on any local port / host, plus FRONTEND_URL when deployed.
+const allowedOrigin = (origin, cb) => {
+  if (!origin) return cb(null, true);
+  const extra = (process.env.FRONTEND_URL || '').split(',').map((o) => o.trim()).filter(Boolean);
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+  cb(null, isLocal || extra.includes(origin));
+};
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173", // Vite dev server
+    origin: allowedOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   },
@@ -76,7 +91,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: allowedOrigin,
   credentials: true
 }));
 
@@ -97,6 +112,8 @@ app.use('/api/roadmaps', roadmapRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/company-applications', companyApplicationRoutes);
 app.use('/api/mentorship', mentorshipRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/alumni', alumniRoutes);
 
 // Health check route
 app.get('/', (req, res) => {

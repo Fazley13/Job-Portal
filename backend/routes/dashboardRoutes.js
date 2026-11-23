@@ -1,25 +1,9 @@
-import express from "express"
-import {
-  getStudentStats,
-  getEmployerStats,
-  getEmployerPipeline,
-  getAdminStats,
-  getRecentActivities,
-} from "../controllers/dashboardController.js"
-import { protect } from "../middleware/auth.js"
-import { checkRole } from "../middleware/rolecheck.js"
+import express from 'express';
+import { getDashboardSummary } from '../controllers/dashboardController.js';
+import { protect } from '../middleware/auth.js';
 
-const router = express.Router()
+const router = express.Router();
 
-// Student dashboard routes
-router.get("/student/stats", protect, checkRole(["student"]), getStudentStats)
+router.get('/summary', protect, getDashboardSummary);
 
-// Employer dashboard routes
-router.get("/employer/stats", protect, checkRole(["employer"]), getEmployerStats)
-router.get("/employer/pipeline", protect, checkRole(["employer"]), getEmployerPipeline)
-
-// Admin dashboard routes
-router.get("/admin/stats", protect, checkRole(["admin"]), getAdminStats)
-router.get("/admin/activities/recent", protect, checkRole(["admin"]), getRecentActivities)
-
-export default router
+export default router;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, API_ORIGIN } from '../../contexts/AuthContext';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -168,7 +168,7 @@ const ProgramContent: React.FC = () => {
 
   const handleDownload = (fileUrl: string, fileName: string) => {
     const link = document.createElement('a');
-    link.href = `http://localhost:8080${fileUrl}`;
+    link.href = `${API_ORIGIN}${fileUrl}`;
     link.download = fileName;
     link.target = '_blank';
     document.body.appendChild(link);

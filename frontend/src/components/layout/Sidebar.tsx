@@ -1,122 +1,106 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { LogOut, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import {
-  User,
-  Briefcase,
-  FileText,
-  Brain,
-  BookOpen,
-  Mic,
-  Users,
-  Wrench,
-  Bell,
-  HelpCircle,
-  PlusCircle,
-  List,
-  Search,
-  BarChart3,
-  Calendar,
-  MessageSquare,
-  Share2,
-  Settings,
-  Shield,
-  UserCheck,
-  Target,
-  MapPin,
-  Rocket,
-  Lightbulb,
-  CalendarDays,
-  Heart,
-  Upload,
-  UserPlus,
-  Home,
-  Radio,
-  Building,
-  GraduationCap
-} from 'lucide-react';
+import Logo from './Logo';
+import { Avatar, RoleBadge } from '../ui';
+import { navForRole, bestMatch } from './navConfig';
 
-const Sidebar: React.FC = () => {
-  const { user } = useAuth();
-  const location = useLocation();
+interface SidebarProps {
+  open: boolean;
+  onClose: () => void;
+}
 
-  const getMenuItems = () => {
-    switch (user?.role) {
-      case 'student':
-        return [
-          { icon: MessageSquare, label: 'Feed', path: '/dashboard' },
-          { icon: User, label: 'My Profile', path: '/profile' },
-          { icon: UserPlus, label: 'Network', path: '/network' },
-          { icon: Briefcase, label: 'Job Search', path: '/jobs/search' },
-          { icon: Building, label: 'Companies', path: '/companies' },
-          { icon: FileText, label: 'Applications', path: '/applications' },
-          { icon: CalendarDays, label: 'Events', path: '/events' },
-          { icon: GraduationCap, label: 'Mentorship', path: '/mentorship/student' },
-          { icon: Target, label: 'Career Roadmaps', path: '/roadmaps' }
-        ];
-      case 'alumni':
-        return [
-          { icon: MessageSquare, label: 'Feed', path: '/dashboard' },
-          { icon: User, label: 'My Profile', path: '/profile' },
-          { icon: UserPlus, label: 'Network', path: '/network' },
-          { icon: Briefcase, label: 'Job Search', path: '/jobs/search' },
-          { icon: GraduationCap, label: 'Mentorship Panel', path: '/mentorship/alumni' }
-        ];
-      case 'employer':
-        return [
-            { icon: Home, label: 'Dashboard', path: '/dashboard' },
-            { icon: PlusCircle, label: 'Post a Job', path: '/jobs/create' },
-            { icon: List, label: 'Manage Jobs', path: '/jobs/manage' },
-            { icon: Users, label: 'Applications', path: '/applications/manage' },
-            { icon: Building, label: 'My Companies', path: '/companies/manage' },
-            { icon: Calendar, label: 'Manage Events', path: '/events/manage' },
-            // { icon: Bell, label: 'Notifications', path: '/notifications' }, // THIS LINE HAS BEEN REMOVED
-            { icon: User, label: 'My Profile', path: '/profile' }
-        ];
-      case 'admin':
-        return [
-          { icon: BarChart3, label: 'Dashboard', path: '/dashboard' },
-          { icon: Users, label: 'Manage Users', path: '/admin/users' },
-          { icon: Briefcase, label: 'Manage Jobs', path: '/admin/jobs' },
-          { icon: Building, label: 'Manage Companies', path: '/admin/companies' },
-          { icon: CalendarDays, label: 'Manage Events', path: '/admin/events' },
-          { icon: GraduationCap, label: 'Mentorships', path: '/admin/mentorships' },
-          { icon: Target, label: 'Manage Roadmaps', path: '/admin/roadmaps' }
-        ];
+const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
+  const { user, logout } = useAuth();
+  const { pathname } = useLocation();
+  const groups = navForRole(user?.role);
+  const active = bestMatch(groups, pathname);
 
-      default:
-        return [];
-    }
-  };
+  useEffect(() => {
+    onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
-  const menuItems = getMenuItems();
+  if (!user) return null;
 
-  return (
-    <div className="w-64 bg-white shadow-sm border-r border-gray-200 h-full">
-      <div className="p-6">
-        <nav className="space-y-1 mt-8"> {/* Added margin-top to compensate for removed logo */}
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-            
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-700 font-semibold'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="text-sm font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+  const content = (
+    <div className="flex h-full flex-col">
+      <div className="flex h-16 shrink-0 items-center justify-between px-5">
+        <Logo to="/dashboard" />
+        <button onClick={onClose} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 lg:hidden" aria-label="Close menu">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <nav className="scrollbar-thin flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-2" aria-label="Main navigation">
+        {groups.map((group, gi) => (
+          <div key={gi}>
+            {group.title && <p className="mb-1.5 px-3 text-xs font-semibold text-gray-400">{group.title}</p>}
+            <ul className="space-y-0.5">
+              {group.items.map(({ icon: Icon, label, path }) => {
+                const isActive = active === path;
+                return (
+                  <li key={path}>
+                    <Link
+                      to={path}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+                        isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                    >
+                      <Icon className={`h-[18px] w-[18px] ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </nav>
+
+      <div className="shrink-0 border-t border-gray-200 p-3">
+        <Link to="/profile" className="flex items-center gap-3 rounded-xl p-2 hover:bg-gray-50">
+          <Avatar name={`${user.firstName} ${user.lastName}`} src={user.profile?.avatar} size="md" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-gray-900">
+              {user.firstName} {user.lastName}
+            </p>
+            <RoleBadge role={user.role} className="mt-0.5" />
+          </div>
+        </Link>
+        <button
+          onClick={logout}
+          className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-gray-500 hover:bg-rose-50 hover:text-rose-600"
+        >
+          <LogOut className="h-[18px] w-[18px]" />
+          Sign out
+        </button>
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {/* Desktop */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-gray-200 bg-white lg:block">{content}</aside>
+
+      {/* Mobile drawer */}
+      <div className={`fixed inset-0 z-50 lg:hidden ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
+        <div
+          className={`absolute inset-0 bg-gray-900/40 transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`}
+          onClick={onClose}
+        />
+        <aside
+          className={`absolute inset-y-0 left-0 w-72 max-w-[85%] bg-white shadow-xl transition-transform duration-200 ${
+            open ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          {content}
+        </aside>
+      </div>
+    </>
   );
 };
 

@@ -30,7 +30,12 @@ import UserSearch from './pages/social/UserSearch';
 import ManageUsers from './pages/admin/ManageUsers';
 import ManageJobs from './pages/admin/ManageJobs';
 import ManageRoadmaps from './pages/admin/ManageRoadmaps';
-import ManageAdminEvents from  './pages/admin/ManageAdminEvents';
+import ManageAdminEvents from './pages/admin/ManageAdminEvents';
+import ManageAdminCompanies from './pages/admin/ManageAdminCompanies';
+import Landing from './pages/public/Landing';
+import NotFound from './pages/public/NotFound';
+import { PageLoader } from './components/ui';
+import { useAuth } from './contexts/AuthContext';
 
 
 // Employer Pages
@@ -223,6 +228,15 @@ function App() {
               />
 
               <Route
+                path="/admin/companies"
+                element={
+                  <PrivateRoute roles={['admin']}>
+                    <ManageAdminCompanies />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
                 path="/admin/roadmaps"
                 element={
                   <PrivateRoute roles={['admin']}>
@@ -366,20 +380,19 @@ function App() {
 
               
               {/* Root redirect */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<Landing />} />
+
+              {/* Old / mistyped links that used to 404 */}
+              <Route path="/settings" element={<Navigate to="/profile" replace />} />
+              <Route path="/roadmaps" element={<Navigate to="/roadmap" replace />} />
+              <Route path="/mentorship-panel" element={<Navigate to="/mentorship/alumni" replace />} />
+              <Route path="/admin/mentorships" element={<Navigate to="/mentorship/admin" replace />} />
+              <Route path="/notifications" element={<Navigate to="/dashboard" replace />} />
               
               {/* 404 */}
-              <Route
-                path="*"
-                element={
-                  <div className="flex flex-col items-center justify-center min-h-screen">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-                    <p className="text-gray-600">Page not found</p>
-                  </div>
-                }
-              />
+              <Route path="*" element={<NotFound />} />
             </Routes>
-            <Toaster position="top-right" />
+            <Toaster position="top-right" toastOptions={{ style: { borderRadius: '12px', fontSize: '14px' } }} />
           </div>
         </SocketProvider>
       </AuthProvider>
@@ -388,12 +401,11 @@ function App() {
 }
 
 // Dashboard Router Component
-import { useAuth } from './contexts/AuthContext'; // ✅ make sure this is present
 
 function DashboardRouter() {
   const { user, loading } = useAuth();
 
-  if (loading) return <div className="text-center mt-10">Loading...</div>;
+  if (loading) return <PageLoader />;
 
   if (!user) return <Navigate to="/login" replace />;
 

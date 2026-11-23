@@ -57,7 +57,8 @@ export const useAuth = () => {
 };
 
 // Set the base URL for all axios requests
-axios.defaults.baseURL = 'http://localhost:8080/api';
+export const API_ORIGIN: string = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8080';
+axios.defaults.baseURL = `${API_ORIGIN}/api`;
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -95,7 +96,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast.success('Logged in successfully!');
     } catch (error: any) {
       console.error('Login error:', error);
-      const message = error.response?.data?.message || 'Login failed';
+      const message = error.response?.data?.message || (error.request ? `Cannot reach the server at ${API_ORIGIN}. Make sure the backend is running.` : 'Login failed');
       toast.error(message);
       throw error;
     }
@@ -111,7 +112,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast.success('Account created successfully!');
     } catch (error: any) {
       console.error('Register error:', error);
-      const message = error.response?.data?.message || 'Registration failed';
+      const message = error.response?.data?.message || (error.request ? `Cannot reach the server at ${API_ORIGIN}. Make sure the backend is running.` : 'Registration failed');
       toast.error(message);
       throw error;
     }
